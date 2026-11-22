@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CDB vs LCI/LCA</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #f7f7f5; --card: #ffffff; --fg: #1d1d1b; --muted: #6b6b66; --line: #e3e3de;
+  --cdb: #2f6fdb; --lci: #1f9d6b; --win: #e8f6ee; --win-fg: #136b47;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161615; --card: #1f1f1d; --fg: #ececea; --muted: #9a9a94; --line: #33332f;
+    --cdb: #6b9bf0; --lci: #4cc795; --win: #183428; --win-fg: #7fe0b4;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161615; --card: #1f1f1d; --fg: #ececea; --muted: #9a9a94; --line: #33332f;
+  --cdb: #6b9bf0; --lci: #4cc795; --win: #183428; --win-fg: #7fe0b4;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 1.6rem; margin: 0 0 4px; }
+h2 { font-size: 1.1rem; margin: 0 0 12px; }
+p.sub { color: var(--muted); margin: 0 0 20px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  padding: 16px; margin-bottom: 16px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+label { display: block; font-weight: 600; margin-bottom: 4px; }
+.row { display: flex; align-items: center; gap: 10px; }
+input[type=range] { flex: 1; min-width: 0; }
+input[type=number] { width: 96px; padding: 4px 6px; font: inherit; color: var(--fg);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+.hint { color: var(--muted); font-size: 0.85rem; }
+.cdb { color: var(--cdb); } .lci { color: var(--lci); }
+.big { font-size: 1.5rem; font-weight: 700; }
+.verdict { padding: 12px 16px; border-radius: 10px; background: var(--win); color: var(--win-fg);
+  font-weight: 600; font-size: 1.05rem; }
+.tablewrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+td.best { background: var(--win); color: var(--win-fg); font-weight: 600; }
+.chartbox { position: relative; height: 340px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>CDB vs LCI/LCA</h1>
+  <p class="sub">LCI e LCA são isentas de IR. O CDB paga IR pela tabela regressiva sobre o rendimento. Mexa nos sliders e veja qual rende mais líquido.</p>
+
+  <section class="card grid">
+    <div>
+      <label for="cdi">CDI (% a.a.)</label>
+      <div class="row">
+        <input type="range" id="cdiR" min="2" max="20" step="0.05">
+        <input type="number" id="cdi" min="0" max="50" step="0.01">
+      </div>
+      <div class="hint" id="cdiSrc">carregando do Banco Central...</div>
+    </div>
+    <div>
+      <label for="valor">Valor investido (R$)</label>
+      <div class="row">
+        <input type="range" id="valorR" min="100" max="100000" step="100">
+        <input type="number" id="valor" min="1" step="100">
+      </div>
+    </div>
+    <div>
+      <label for="pcdb" class="cdb">CDB (% do CDI)</label>
+      <div class="row">
+        <input type="range" id="pcdbR" min="50" max="150" step="1">
+        <input type="number" id="pcdb" min="0" max="300" step="0.5">
+      </div>
+    </div>
+    <div>
+      <label for="plci" class="lci">LCI/LCA (% do CDI)</label>
+      <div class="row">
+        <input type="range" id="plciR" min="50" max="150" step="1">
+        <input type="number" id="plci" min="0" max="300" step="0.5">
+      </div>
+    </div>
+    <div>
+      <label for="dias">Prazo (dias corridos)</label>
+      <div class="row">
+        <input type="range" id="diasR" min="90" max="1825" step="1">
+        <input type="number" id="dias" min="1" max="3650" step="1">
+      </div>
+      <div class="hint" id="diasHint"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="verdict" id="verdict"></div>
+    <div class="grid" style="margin-top:16px">
+      <div>
+        <div class="hint">CDB líquido no prazo</div>
+        <div class="big cdb" id="liqCdb"></div>
+        <div class="hint" id="cdbDet"></div>
+      </div>
+      <div>
+        <div class="hint">LCI/LCA líquido no prazo</div>
+        <div class="big lci" id="liqLci"></div>
+        <div class="hint" id="lciDet"></div>
+      </div>
+    </div>
+    <div class="grid" style="margin-top:16px">
+      <div>
+        <div class="hint">Seu CDB equivale a uma LCI/LCA de</div>
+        <div class="big lci" id="eqLci"></div>
+      </div>
+      <div>
+        <div class="hint">Sua LCI/LCA equivale a um CDB de</div>
+        <div class="big cdb" id="eqCdb"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Valor líquido resgatado por prazo</h2>
+    <div class="chartbox"><canvas id="chart"></canvas></div>
+  </section>
+
+  <section class="card">
+    <h2>Tabela por prazo</h2>
+    <div class="tablewrap"><table id="tabela"></table></div>
+  </section>
+
+  <section class="card hint">
+    <p>Como é calculado:</p>
+    <ol>
+      <li>Taxa diária = (1 + CDI)<sup>1/252</sup> - 1; um título a p% do CDI rende p x taxa diária por dia útil.</li>
+      <li>Dias úteis ≈ dias corridos x 252 / 365 (sem calendário de feriados) e o CDI fica constante no prazo.</li>
+      <li>IR do CDB sobre o rendimento: 22,5% até 180 dias, 20% até 360, 17,5% até 720, 15% acima.</li>
+      <li>Sem IOF (só incide em resgates com menos de 30 dias) e sem considerar a carência mínima que a LCI/LCA tenha.</li>
+      <li>Equivalência = % do CDI que dá o mesmo valor líquido no prazo escolhido.</li>
+    </ol>
+    <p>CDI ao vivo: Banco Central, SGS série 4389 (CDI anualizado base 252).</p>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const brl = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const pct = (v, d = 2) => v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+
+const state = { cdi: 13.65, valor: 1000, pcdb: 100, plci: 90, dias: 720 };
+const prazos = [90, 180, 270, 360, 540, 720, 1080, 1460, 1825];
+
+const aliquota = d => d <= 180 ? 0.225 : d <= 360 ? 0.20 : d <= 720 ? 0.175 : 0.15;
+const du = d => d * 252 / 365;
+const fator = (p, d) => Math.pow(1 + (p / 100) * (Math.pow(1 + state.cdi / 100, 1 / 252) - 1), du(d));
+const brutoCdb = d => state.valor * fator(state.pcdb, d);
+const liqCdb = d => { const g = brutoCdb(d) - state.valor; return state.valor + g * (1 - aliquota(d)); };
+const liqLci = d => state.valor * fator(state.plci, d);
+
+// % do CDI que dá o fator alvo no prazo d
+function pDoFator(f, d) {
+  const daily = Math.pow(f, 1 / du(d)) - 1;
+  return 100 * daily / (Math.pow(1 + state.cdi / 100, 1 / 252) - 1);
+}
+
+function prazoTxt(d) {
+  if (d % 365 === 0) return (d / 365) + (d === 365 ? ' ano' : ' anos');
+  if (d >= 365) return pct(d / 365, 1) + ' anos';
+  return Math.round(d / 30) + ' meses';
+}
+
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+let chart;
+
+function render() {
+  const d = state.dias, a = aliquota(d);
+  const c = liqCdb(d), l = liqLci(d);
+  $('diasHint').textContent = `≈ ${prazoTxt(d)}, IR do CDB: ${pct(a * 100, 1)}%`;
+  $('liqCdb').textContent = brl(c);
+  $('liqLci').textContent = brl(l);
+  $('cdbDet').textContent = `bruto ${brl(brutoCdb(d))}, IR ${brl((brutoCdb(d) - state.valor) * a)}`;
+  $('lciDet').textContent = `rendimento ${brl(l - state.valor)}, sem IR`;
+  const eqL = pDoFator(c / state.valor, d);
+  const fLci = liqLci(d) / state.valor;
+  const eqC = pDoFator(1 + (fLci - 1) / (1 - a), d);
+  $('eqLci').textContent = pct(eqL, 1) + '% do CDI';
+  $('eqCdb').textContent = pct(eqC, 1) + '% do CDI';
+  const diff = Math.abs(c - l);
+  $('verdict').textContent = diff < 0.005
+    ? `Empate em ${prazoTxt(d)}.`
+    : `${c > l ? 'CDB' : 'LCI/LCA'} ganha em ${prazoTxt(d)}: ${brl(diff)} a mais sobre ${brl(state.valor)}.`;
+
+  const rows = prazos.map(p => [p, liqCdb(p), liqLci(p)]);
+  $('tabela').innerHTML =
+    '<tr><th>Prazo</th><th>IR CDB</th><th class="cdb">CDB líquido</th><th class="lci">LCI/LCA líquido</th><th>Diferença</th><th>LCI equivalente</th></tr>' +
+    rows.map(([p, cc, ll]) => `<tr><td>${prazoTxt(p)} (${p}d)</td><td>${pct(aliquota(p) * 100, 1)}%</td>` +
+      `<td class="${cc > ll ? 'best' : ''}">${brl(cc)}</td><td class="${ll > cc ? 'best' : ''}">${brl(ll)}</td>` +
+      `<td>${brl(Math.abs(cc - ll))}</td><td>${pct(pDoFator(cc / state.valor, p), 1)}%</td></tr>`).join('');
+
+  const xs = []; for (let x = 30; x <= 1825; x += 15) xs.push(x);
+  if (!xs.includes(d)) { xs.push(d); xs.sort((m, n) => m - n); }
+  const ds = [
+    { label: 'CDB líquido', data: xs.map(x => ({ x, y: liqCdb(x) })), borderColor: css('--cdb'), backgroundColor: css('--cdb'), stepped: false },
+    { label: 'LCI/LCA líquido', data: xs.map(x => ({ x, y: liqLci(x) })), borderColor: css('--lci'), backgroundColor: css('--lci') },
+    { label: 'Prazo escolhido', data: [{ x: d, y: c }, { x: d, y: l }], type: 'scatter', pointRadius: 6, borderColor: css('--fg'), backgroundColor: css('--fg') }
+  ];
+  if (!chart) {
+    Chart.defaults.color = css('--muted');
+    Chart.defaults.borderColor = css('--line');
+    chart = new Chart($('chart'), {
+      type: 'line',
+      data: { datasets: ds },
+      options: {
+        animation: false, maintainAspectRatio: false, parsing: false,
+        elements: { point: { radius: 0 }, line: { borderWidth: 2.5 } },
+        interaction: { mode: 'nearest', axis: 'x', intersect: false },
+        scales: {
+          x: { type: 'linear', min: 30, max: 1825, title: { display: true, text: 'dias corridos' } },
+          y: { ticks: { callback: v => brl(v) } }
+        },
+        plugins: { tooltip: { callbacks: {
+          title: it => `${it[0].parsed.x} dias (${prazoTxt(it[0].parsed.x)})`,
+          label: it => `${it.dataset.label}: ${brl(it.parsed.y)}`
+        } } }
+      }
+    });
+  } else {
+    chart.data.datasets.forEach((s, i) => s.data = ds[i].data);
+    chart.update();
+  }
+}
+
+for (const k of Object.keys(state)) {
+  const num = $(k), rng = $(k + 'R');
+  num.value = rng.value = state[k];
+  const set = v => { v = parseFloat(v); if (!isFinite(v) || v <= 0) return; state[k] = v; num.value = rng.value = v; render(); };
+  num.addEventListener('input', e => set(e.target.value));
+  rng.addEventListener('input', e => set(e.target.value));
+}
+
+render();
+
+fetch('https://api.bcb.gov.br/dados/serie/bcdata.sgs.4389/dados/ultimos/1?formato=json')
+  .then(r => r.json())
+  .then(([{ data, valor }]) => {
+    state.cdi = parseFloat(valor);
+    $('cdi').value = $('cdiR').value = state.cdi;
+    $('cdiSrc').textContent = `Banco Central, ${data}. Pode editar.`;
+    render();
+  })
+  .catch(() => { $('cdiSrc').textContent = 'Banco Central fora do ar: usando 13,65% (19/11/2026). Pode editar.'; });
+</script>
+</body>
+</html>
