@@ -33,6 +33,8 @@ p.sub { color: var(--muted); margin: 0 0 20px; }
 label { display: block; font-weight: 600; margin-bottom: 4px; }
 .row { display: flex; align-items: center; gap: 10px; }
 input[type=range] { flex: 1; min-width: 0; }
+button.step { width: 32px; height: 32px; flex: none; font: inherit; font-weight: 700; color: var(--fg);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
 input[type=number] { width: 96px; padding: 4px 6px; font: inherit; color: var(--fg);
   background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
 .hint { color: var(--muted); font-size: 0.85rem; }
@@ -57,7 +59,9 @@ td.best { background: var(--win); color: var(--win-fg); font-weight: 600; }
     <div>
       <label for="cdi">CDI (% a.a.)</label>
       <div class="row">
+        <button type="button" class="step" data-k="cdi" data-d="-1">−</button>
         <input type="range" id="cdiR" min="2" max="20" step="0.05">
+        <button type="button" class="step" data-k="cdi" data-d="1">+</button>
         <input type="number" id="cdi" min="0" max="50" step="0.01">
       </div>
       <div class="hint" id="cdiSrc">carregando do Banco Central...</div>
@@ -65,28 +69,36 @@ td.best { background: var(--win); color: var(--win-fg); font-weight: 600; }
     <div>
       <label for="valor">Valor investido (R$)</label>
       <div class="row">
+        <button type="button" class="step" data-k="valor" data-d="-1">−</button>
         <input type="range" id="valorR" min="100" max="100000" step="100">
+        <button type="button" class="step" data-k="valor" data-d="1">+</button>
         <input type="number" id="valor" min="1" step="100">
       </div>
     </div>
     <div>
       <label for="pcdb" class="cdb">CDB (% do CDI)</label>
       <div class="row">
+        <button type="button" class="step" data-k="pcdb" data-d="-1">−</button>
         <input type="range" id="pcdbR" min="50" max="150" step="1">
+        <button type="button" class="step" data-k="pcdb" data-d="1">+</button>
         <input type="number" id="pcdb" min="0" max="300" step="0.5">
       </div>
     </div>
     <div>
       <label for="plci" class="lci">LCI/LCA (% do CDI)</label>
       <div class="row">
+        <button type="button" class="step" data-k="plci" data-d="-1">−</button>
         <input type="range" id="plciR" min="50" max="150" step="1">
+        <button type="button" class="step" data-k="plci" data-d="1">+</button>
         <input type="number" id="plci" min="0" max="300" step="0.5">
       </div>
     </div>
     <div>
       <label for="dias">Prazo (dias corridos)</label>
       <div class="row">
+        <button type="button" class="step" data-k="dias" data-d="-1">−</button>
         <input type="range" id="diasR" min="90" max="1825" step="1">
+        <button type="button" class="step" data-k="dias" data-d="1">+</button>
         <input type="number" id="dias" min="1" max="3650" step="1">
       </div>
       <div class="hint" id="diasHint"></div>
@@ -147,6 +159,7 @@ const brl = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' 
 const pct = (v, d = 2) => v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
 
 const state = { cdi: 13.65, valor: 1000, pcdb: 100, plci: 90, dias: 720 };
+const passos = { cdi: 0.05, valor: 100, pcdb: 1, plci: 1, dias: 30 };
 const prazos = [90, 180, 270, 360, 540, 720, 1080, 1460, 1825];
 
 const aliquota = d => d <= 180 ? 0.225 : d <= 360 ? 0.20 : d <= 720 ? 0.175 : 0.15;
@@ -235,6 +248,10 @@ for (const k of Object.keys(state)) {
   const set = v => { v = parseFloat(v); if (!isFinite(v) || v <= 0) return; state[k] = v; num.value = rng.value = v; render(); };
   num.addEventListener('input', e => set(e.target.value));
   rng.addEventListener('input', e => set(e.target.value));
+  document.querySelectorAll(`button.step[data-k="${k}"]`).forEach(b => b.addEventListener('click', () => {
+    const v = state[k] + b.dataset.d * passos[k];
+    set(Math.min(+rng.max, Math.max(+rng.min, +v.toFixed(2))));
+  }));
 }
 
 render();
